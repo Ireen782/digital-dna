@@ -10,6 +10,7 @@ from xml.sax.saxutils import escape
 from docx import Document
 from docx.shared import Inches
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from reportlab.lib.pagesizes import A4
@@ -22,6 +23,17 @@ from backend.certificate_page import router as certificate_page_router
 from backend.verification_requests import router as verification_requests_router
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(certificate_page_router)
 app.include_router(verification_requests_router)
 DB = "digitaldna.db"
