@@ -1,9 +1,12 @@
 import hashlib
 import io
 import json
+import os
 import sqlite3
+import tempfile
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 from xml.sax.saxutils import escape
 
@@ -21,6 +24,8 @@ from backend.ai_detection import analyze_image as ai_checks
 from backend.branding import BRAND_NAME, LOGO_PATH, TAGLINE, draw_pdf_page, logo_exists
 from backend.certificate_page import router as certificate_page_router
 from backend.verification_requests import router as verification_requests_router
+from forensics.ela_check import check_ela
+from forensics.metadata_check import check_metadata
 
 app = FastAPI()
 app.add_middleware(
@@ -143,6 +148,30 @@ def save_report(filename, sha256, result, summary, checks):
     return reference
 
 
+def forensic_checks(data, filename):
+    """Runs the forensics checks (metadata, ELA). They need a file path, so the
+    upload is saved to a temporary file and deleted afterwards."""
+    suffix = Path(filename or "").suffix
+    if not suffix.lstrip(".").isalnum() or len(suffix) > 10:
+        suffix = ".bin"
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        return [check_metadata(path), check_ela(path)]
+    except Exception:
+        return [{
+            "name": "Forensics",
+            "status": "unverified",
+            "detail": "Forensic checks could not be run on this file.",
+        }]
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 @app.get("/")
 def root():
     return {"message": "Digital DNA backend is alive"}
@@ -211,9 +240,9 @@ async def verify(file: UploadFile = File(...)):
             "detail": "No matching registration exists.",
         }
 
-    # Each module adds its own checks to this list. Forensics (ELA, metadata)
-    # will be added here later in the same format.
-    checks = [check] + ai_checks(data)
+    # Each module adds its own checks to this list, in the same format:
+    # source verification, AI detection, then forensics (metadata, ELA).
+    checks = [check] + ai_checks(data) + forensic_checks(data, file.filename)
 
     if result != "Verified Source":
         ai_fail = any(

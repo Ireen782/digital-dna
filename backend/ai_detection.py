@@ -8,7 +8,19 @@ AI_KEYWORDS = [
     "firefly", "openai", "comfyui", "automatic1111", "novelai",
     "leonardo.ai", "sdxl", "flux", "imagen", "chatgpt",
 ]
-AI_CHUNK_KEYS = ["parameters", "prompt", "workflow", "c2pa", "jumbf"]
+# Metadata keys written by common AI tools (for example Stable Diffusion UIs).
+AI_CHUNK_KEYS = ["parameters", "prompt", "workflow"]
+
+# Longer markers that are safe to search for in the raw file bytes. Pillow does
+# not expose C2PA / Content Credentials data, so the raw bytes are scanned too.
+AI_BYTE_MARKERS = [
+    b"trainedalgorithmicmedia",  # standard "AI-generated" label (IPTC / C2PA)
+    b"midjourney", b"dall-e", b"openai", b"chatgpt", b"stable diffusion",
+    b"adobe firefly", b"comfyui", b"automatic1111", b"novelai", b"leonardo.ai",
+]
+C2PA_MARKER = b"c2pa"
+
+NAME = "AI generator signature"
 
 
 def _collect_metadata(img):
@@ -30,26 +42,50 @@ def _collect_metadata(img):
     return pairs
 
 
-def ai_signature_check(img):
+def ai_signature_check(img, data):
     pairs = _collect_metadata(img)
     haystack = " ".join(f"{k} {v}" for k, v in pairs.items())
 
     for kw in AI_KEYWORDS:
         if kw in haystack:
             return {
-                "name": "AI generator signature",
+                "name": NAME,
                 "status": "fail",
                 "detail": f"Image data contains a signature of an AI image generator ('{kw}').",
             }
     for key in AI_CHUNK_KEYS:
         if key in pairs:
             return {
-                "name": "AI generator signature",
+                "name": NAME,
                 "status": "fail",
                 "detail": f"Image contains a '{key}' data block, which is typical of AI-generated images.",
             }
+
+    raw = data.lower()
+    for marker in AI_BYTE_MARKERS:
+        if marker in raw:
+            label = marker.decode()
+            if label == "trainedalgorithmicmedia":
+                label = "trainedAlgorithmicMedia"
+            return {
+                "name": NAME,
+                "status": "fail",
+                "detail": f"The file contains an AI-generation marker ('{label}').",
+            }
+
+    if C2PA_MARKER in raw:
+        return {
+            "name": NAME,
+            "status": "warn",
+            "detail": (
+                "The file carries Content Credentials (C2PA) data, but nothing in it names an AI "
+                "generator. These credentials are used by AI tools and also by some cameras and "
+                "editing software, so inspect them with a C2PA reader before drawing a conclusion."
+            ),
+        }
+
     return {
-        "name": "AI generator signature",
+        "name": NAME,
         "status": "unverified",
         "detail": "No AI generator signature found. This does not prove the image is not AI-generated, because many platforms remove this data.",
     }
@@ -64,7 +100,7 @@ def analyze_image(data: bytes):
     except Exception:
         return [
             {
-                "name": "AI generator signature",
+                "name": NAME,
                 "status": "unverified",
                 "detail": "File is not a supported image, so AI detection was skipped.",
             }
@@ -72,11 +108,11 @@ def analyze_image(data: bytes):
     checks = []
     for fn in (ai_signature_check,):
         try:
-            checks.append(fn(img))
+            checks.append(fn(img, data))
         except Exception as e:
             checks.append(
                 {
-                    "name": "AI generator signature",
+                    "name": NAME,
                     "status": "unverified",
                     "detail": f"Check could not run: {e}",
                 }
