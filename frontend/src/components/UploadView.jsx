@@ -7,6 +7,8 @@ import { DEMO_CASES } from "../mockReports";
 
 export default function UploadView({ onFile, onDemo, onRegister }) {
   const [error, setError] = useState("");
+  const [resultData, setResultData] = useState(null);
+
   function pick(file) {
     const problem = validate(file);
     if (problem) return setError(problem);
@@ -73,7 +75,7 @@ export default function UploadView({ onFile, onDemo, onRegister }) {
               ["search", "We look closely", "Four separate checks look at the file's hidden details, the image itself, AI signals and the issuer."],
               ["report", "You get a plain-English report", "A score out of 100, what we found, and the next steps worth taking."],
             ].map(([icon, t, d], i) => (
-              <Reveal as="li" key={t} delay={i * 100} className="how-step">
+              <Reveal as="li" key={t} delay={(i + 1) * 100} className="how-step">
                 <span className="n">0{i + 1}</span>
                 <div><h3>{t}</h3><p>{d}</p></div>
                 <span className="ic"><Icon name={icon} size={28} stroke={1.5} /></span>
@@ -135,25 +137,53 @@ export default function UploadView({ onFile, onDemo, onRegister }) {
         </div>
       </section>
 
-      {/* ---------- Principles ---------- */}
-      <section className="section paper2" id="promise">
+      {/* ---------- Analysis Results Section ---------- */}
+      <section className="section" id="results">
+        <div className="wrap">
+          <div className="card-box" style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "12px", padding: "2rem", margin: "2rem 0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+            <p className="eyebrow">Output</p>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: "600", marginBottom: "0.75rem" }}>Analysis Results</h3>
+            <div style={{ color: "var(--text-muted, #64748b)", padding: "1.5rem 0", textAlign: "center" }}>
+              {resultData ? (
+                <p style={{ color: "var(--text-main, #1e293b)", textAlign: "left", lineHeight: "1.6" }}>{resultData}</p>
+              ) : (
+                <p style={{ fontStyle: "italic" }}>Results will appear here once processed.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Platform Goals Section ---------- */}
+      <section className="section paper2" id="goals">
         <div className="wrap">
           <Reveal>
-            <p className="eyebrow">How we treat results</p>
-            <h2>Behind every document is a person, so we choose our words carefully</h2>
+            <p className="eyebrow">Our Vision</p>
+            <h2>Platform Goals & Commitments</h2>
+            <div className="field-notes" style={{ marginTop: "1.5rem" }}>
+              <div className="note-row">
+                <span className="idx">01</span>
+                <div className="note-main">
+                  <h3>Seamless Verification</h3>
+                  <p>Delivering fast, intuitive, and accessible digital trust solutions for everyday users and institutions alike.</p>
+                </div>
+              </div>
+              <div className="note-row">
+                <span className="idx">02</span>
+                <div className="note-main">
+                  <h3>User Empowerment</h3>
+                  <p>Providing clear, jargon-free reasoning behind every analysis so you always understand the facts.</p>
+                </div>
+              </div>
+              <div className="note-row">
+                <span className="idx">03</span>
+                <div className="note-main">
+                  <h3>Reliable Security</h3>
+                  <p>Ensuring zero data retention post-analysis and maintaining a dependable, private verification workflow.</p>
+                </div>
+              </div>
+            </div>
           </Reveal>
-          <div className="promise">
-            {[
-              ["care", "A flag is a question, not a charge.", "We show what we found and how sure we are. We never just say \"fake\"."],
-              ["scale", "A score is a guide, not a verdict.", "It helps you decide what to ask next. It doesn't replace asking the issuer."],
-              ["lock", "Your file stays yours.", "Files are removed after analysis, and shared reports don't expose the document."],
-            ].map(([icon, t, d], i) => (
-              <Reveal key={t} delay={i * 100} className="promise-item">
-                <Icon name={icon} size={30} stroke={1.4} />
-                <h3>{t}</h3><p>{d}</p>
-              </Reveal>
-            ))}
-          </div>
         </div>
       </section>
     </>
