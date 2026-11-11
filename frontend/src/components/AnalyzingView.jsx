@@ -1,31 +1,37 @@
 import { useEffect, useState } from "react";
+import DocPreview from "./DocPreview";
+import Icon from "./Icon";
 
 const STEPS = [
-  "Digital forensics: metadata and error level analysis",
-  "Document intelligence: reading fields and layout",
-  "Source verification: checking for an issuer record",
-  "Risk assessment: combining the signals",
+  ["Reading the file", "Opening it and looking at its hidden details."],
+  ["Looking for edits", "Checking whether any part was saved differently."],
+  ["Checking for AI", "Estimating whether an AI tool made the image."],
+  ["Confirming with the issuer", "Looking for an issuer record (simulated here)."],
 ];
 
-export default function AnalyzingView({ filename }) {
+export default function AnalyzingView({ filename, previewUrl, isPdf }) {
   const [active, setActive] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setActive((a) => Math.min(a + 1, STEPS.length - 1)), 800);
+    const t = setInterval(() => setActive((a) => Math.min(a + 1, STEPS.length - 1)), 850);
     return () => clearInterval(t);
   }, []);
 
   return (
-    <section className="analyzing">
-      <div className="spinner" />
-      <h2>Analysing {filename}</h2>
-      <ul className="steps">
-        {STEPS.map((s, i) => (
-          <li key={s} className={i < active ? "done" : i === active ? "active" : ""}>
-            <span className="dot">{i < active ? "✓" : i + 1}</span>
-            {s}
-          </li>
-        ))}
-      </ul>
+    <section className="wrap analyzing">
+      <DocPreview previewUrl={previewUrl} isPdf={isPdf} scanning />
+      <div className="an-copy">
+        <p className="eyebrow">Investigating</p>
+        <h2>Looking closely at {filename}</h2>
+        <p className="muted">This usually takes under a minute. Your file is processed privately.</p>
+        <ul className="an-steps">
+          {STEPS.map(([t, d], i) => (
+            <li key={t} className={i < active ? "done" : i === active ? "active" : ""}>
+              <span className="dot">{i < active ? <Icon name="check" size={16} stroke={2.4} /> : i + 1}</span>
+              <div><strong>{t}</strong><small>{d}</small></div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
