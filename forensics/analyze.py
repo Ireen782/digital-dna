@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import sys
+from ocr_check import check_source
 from metadata_check import check_metadata
 from ela_check import check_ela
 
@@ -15,7 +16,7 @@ def sha256_of(file_path):
 
 
 def analyze_file(file_path):
-    checks = [check_metadata(file_path), check_ela(file_path)]
+    checks = [check_metadata(file_path), check_ela(file_path), check_source(file_path)]
     statuses = [c["status"] for c in checks]
 
     if "fail" in statuses or "warn" in statuses:
