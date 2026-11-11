@@ -10,19 +10,31 @@ from xml.sax.saxutils import escape
 from docx import Document
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from backend.ai_detection import analyze_image as ai_checks
+from backend.certificate_page import router as certificate_page_router
 
 app = FastAPI()
+app.include_router(certificate_page_router)
 DB = "digitaldna.db"
 
 NOTE = (
     "Note: this report is an evidence-based assessment, not absolute proof. "
     "A failed or unverified result does not by itself prove forgery."
 )
+
+# FICTIONAL demo records. They do not describe real people or real institutions.
+DEMO_RECORDS = [
+    ("Demo University", "Amina Yusuf", "DU/2022/00123", "B.Sc. Computer Science", "Second Class Upper", 2022),
+    ("Demo University", "Chinedu Okafor", "DU/2023/00456", "B.Sc. Cyber Security", "First Class", 2023),
+    ("Demo University", "Fatima Bello", "DU/2021/00789", "B.Eng. Electrical Engineering", "Second Class Lower", 2021),
+    ("Sample Polytechnic", "Tunde Adeyemi", "SP/ND/2020/0042", "ND Computer Science", "Distinction", 2020),
+    ("Sample Polytechnic", "Grace Ibrahim", "SP/HND/2022/0107", "HND Software Engineering", "Upper Credit", 2022),
+]
 
 
 def init_db():
@@ -45,11 +57,31 @@ def init_db():
             created_at TEXT
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS university_records (
+            institution TEXT,
+            graduate_name TEXT,
+            certificate_number TEXT,
+            degree TEXT,
+            classification TEXT,
+            graduation_year INTEGER,
+            PRIMARY KEY (institution, certificate_number)
+        )"""
+    )
+    count = conn.execute("SELECT COUNT(*) FROM university_records").fetchone()[0]
+    if count == 0:
+        conn.executemany(
+            "INSERT INTO university_records VALUES (?, ?, ?, ?, ?, ?)", DEMO_RECORDS
+        )
     conn.commit()
     conn.close()
 
 
 init_db()
+
+
+def norm(value):
+    return " ".join(str(value).lower().split())
 
 
 def save_report(filename, sha256, result, summary, checks):
@@ -164,6 +196,119 @@ async def verify(file: UploadFile = File(...)):
     }
 
 
+class CertificateDetails(BaseModel):
+    institution: str
+    graduate_name: str
+    certificate_number: str
+    degree: str | None = None
+    classification: str | None = None
+    graduation_year: int | None = None
+
+
+@app.get("/demo-records")
+def demo_records():
+    """Lists the FICTIONAL demo records so the team can test /verify-certificate."""
+    conn = sqlite3.connect(DB)
+    rows = conn.execute(
+        "SELECT institution, graduate_name, certificate_number, degree, "
+        "classification, graduation_year FROM university_records"
+    ).fetchall()
+    conn.close()
+    keys = ["institution", "graduate_name", "certificate_number", "degree", "classification", "graduation_year"]
+    return {"note": "Fictional demo data only.", "records": [dict(zip(keys, r)) for r in rows]}
+
+
+@app.post("/verify-certificate")
+def verify_certificate(details: CertificateDetails):
+    conn = sqlite3.connect(DB)
+    institutions = [r[0] for r in conn.execute("SELECT DISTINCT institution FROM university_records")]
+    institution_match = next((i for i in institutions if norm(i) == norm(details.institution)), None)
+
+    record = None
+    if institution_match:
+        record = conn.execute(
+            "SELECT graduate_name, degree, classification, graduation_year "
+            "FROM university_records WHERE institution = ? AND certificate_number = ?",
+            (institution_match, details.certificate_number.strip()),
+        ).fetchone()
+    conn.close()
+
+    if not institution_match:
+        result = "Cannot Confirm"
+        summary = "This institution has no verification service connected to Digital DNA."
+        check = {
+            "name": "Institutional record check",
+            "status": "unverified",
+            "detail": (
+                f"No verification service is connected for '{details.institution}'. "
+                "This is not proof that the certificate is forged."
+            ),
+        }
+    elif record is None:
+        result = "Verification Failed"
+        summary = "The institution has no record matching this certificate number."
+        check = {
+            "name": "Institutional record check",
+            "status": "fail",
+            "detail": (
+                f"{institution_match} could not confirm certificate number "
+                f"'{details.certificate_number}'. This alone does not prove forgery; "
+                "the number may have been entered incorrectly."
+            ),
+        }
+    else:
+        stored_name, stored_degree, stored_class, stored_year = record
+        mismatches = []
+        if norm(details.graduate_name) != norm(stored_name):
+            mismatches.append("graduate name")
+        if details.degree and norm(details.degree) != norm(stored_degree):
+            mismatches.append("degree")
+        if details.classification and norm(details.classification) != norm(stored_class):
+            mismatches.append("classification")
+        if details.graduation_year and details.graduation_year != stored_year:
+            mismatches.append("graduation year")
+
+        if mismatches:
+            result = "Verification Failed"
+            summary = "A record exists for this certificate number, but some details do not match."
+            check = {
+                "name": "Institutional record check",
+                "status": "fail",
+                "detail": (
+                    f"{institution_match} has a record for this certificate number, but "
+                    f"these details differ: {', '.join(mismatches)}."
+                ),
+            }
+        else:
+            result = "Institutionally Verified"
+            summary = "The certificate details match an authorised institutional record."
+            check = {
+                "name": "Institutional record check",
+                "status": "pass",
+                "detail": f"{institution_match} confirmed a matching record for this certificate.",
+            }
+
+    checks = [check]
+    canonical = json.dumps(details.model_dump(), sort_keys=True)
+    detail_hash = hashlib.sha256(canonical.encode()).hexdigest()
+    reference = save_report(
+        f"Certificate check: {details.certificate_number}",
+        detail_hash,
+        result,
+        summary,
+        checks,
+    )
+
+    return {
+        "reference": reference,
+        "report_url": f"/report/{reference}",
+        "tier": 2,
+        "result": result,
+        "summary": summary,
+        "checks": checks,
+    }
+
+
 @app.get("/report/{reference}")
 def report(reference: str, format: Literal["pdf", "docx", "json", "txt"] = "pdf"):
     conn = sqlite3.connect(DB)
@@ -202,7 +347,7 @@ def report(reference: str, format: Literal["pdf", "docx", "json", "txt"] = "pdf"
             "DIGITAL DNA VERIFICATION REPORT",
             f"Reference: {reference}",
             f"Date of analysis (UTC): {created_at}",
-            f"File name: {filename}",
+            f"Subject: {filename}",
             f"SHA-256: {sha256}",
             f"Result: {result}",
             f"Summary: {summary}",
@@ -218,7 +363,7 @@ def report(reference: str, format: Literal["pdf", "docx", "json", "txt"] = "pdf"
         d.add_heading("Digital DNA Verification Report", 0)
         d.add_paragraph(f"Reference: {reference}")
         d.add_paragraph(f"Date of analysis (UTC): {created_at}")
-        d.add_paragraph(f"File name: {filename}")
+        d.add_paragraph(f"Subject: {filename}")
         d.add_paragraph(f"SHA-256 fingerprint: {sha256}")
         d.add_heading(f"Result: {result}", level=2)
         d.add_paragraph(summary)
@@ -242,7 +387,7 @@ def report(reference: str, format: Literal["pdf", "docx", "json", "txt"] = "pdf"
         Paragraph("Digital DNA Verification Report", styles["Title"]),
         Paragraph(f"<b>Reference:</b> {escape(reference)}", styles["Normal"]),
         Paragraph(f"<b>Date of analysis (UTC):</b> {escape(created_at)}", styles["Normal"]),
-        Paragraph(f"<b>File name:</b> {escape(filename)}", styles["Normal"]),
+        Paragraph(f"<b>Subject:</b> {escape(filename)}", styles["Normal"]),
         Paragraph(f"<b>SHA-256 fingerprint:</b><br/>{escape(sha256)}", styles["Normal"]),
         Spacer(1, 12),
         Paragraph(f"Result: {escape(result)}", styles["Heading2"]),
