@@ -11,22 +11,25 @@ PAGE = """
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Digital DNA - Certificate Check</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #f4f6fb; margin: 0; padding: 24px; color: #1b2433; }
+  body { font-family: Arial, sans-serif; background: #f4f1fa; margin: 0; padding: 24px; color: #1b2433; }
   .card { max-width: 560px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-  h1 { margin-top: 0; font-size: 22px; }
+  h1 { margin-top: 0; font-size: 22px; color: #3a1a66; }
   label { display: block; margin-top: 14px; font-weight: bold; font-size: 14px; }
   input { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #c5cbd8; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
   .hint { font-size: 12px; color: #667; font-weight: normal; }
   button { margin-top: 18px; padding: 11px 18px; border: 0; border-radius: 8px; font-size: 15px; cursor: pointer; }
-  #check { background: #2f5bea; color: #fff; }
-  #demo { background: #e4e8f3; color: #1b2433; margin-left: 8px; }
+  #check { background: #5b2a9e; color: #fff; }
+  #demo { background: #e9e3f5; color: #1b2433; margin-left: 8px; }
   #out { margin-top: 22px; }
   .result { padding: 14px; border-radius: 8px; font-size: 18px; font-weight: bold; }
   .good { background: #dff5e3; color: #17692b; }
   .bad { background: #fde2e2; color: #a12222; }
   .unsure { background: #fff3d6; color: #8a5a00; }
-  .check { border-left: 4px solid #c5cbd8; padding: 6px 10px; margin-top: 10px; font-size: 14px; }
-  .links a { margin-right: 12px; }
+  .check { border-left: 4px solid #c9b8e8; padding: 6px 10px; margin-top: 10px; font-size: 14px; }
+  .next { background: #efe9f9; border-radius: 8px; padding: 12px; margin-top: 14px; font-size: 14px; }
+  .next b { color: #3a1a66; }
+  .request-btn { display: inline-block; margin-top: 12px; padding: 11px 18px; background: #5b2a9e; color: #fff; border-radius: 8px; text-decoration: none; font-size: 15px; }
+  .links a { margin-right: 12px; color: #5b2a9e; }
   .note { font-size: 12px; color: #667; margin-top: 16px; }
 </style>
 </head>
@@ -104,13 +107,13 @@ document.getElementById("check").onclick = async function () {
     });
     const data = await res.json();
     if (!res.ok) { out.textContent = "Error: " + JSON.stringify(data); return; }
-    render(data);
+    render(data, payload);
   } catch (e) {
     out.textContent = "Could not reach the server: " + e;
   }
 };
 
-function render(data) {
+function render(data, payload) {
   const out = document.getElementById("out");
   out.innerHTML = "";
 
@@ -130,6 +133,26 @@ function render(data) {
     d.textContent = c.name + " [" + c.status + "]: " + c.detail;
     out.appendChild(d);
   });
+
+  if (data.next_step) {
+    const n = document.createElement("div");
+    n.className = "next";
+    const label = document.createElement("b");
+    label.textContent = "What to do next: ";
+    n.appendChild(label);
+    n.appendChild(document.createTextNode(data.next_step));
+    out.appendChild(n);
+  }
+
+  if (data.result === "Cannot Confirm") {
+    const params = new URLSearchParams();
+    Object.keys(payload).forEach(function (k) { params.set(k, String(payload[k])); });
+    const btn = document.createElement("a");
+    btn.className = "request-btn";
+    btn.href = "/request?" + params.toString();
+    btn.textContent = "Request verification from this institution";
+    out.appendChild(btn);
+  }
 
   const links = document.createElement("p");
   links.className = "links";
