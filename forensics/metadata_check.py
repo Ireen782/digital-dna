@@ -1,43 +1,32 @@
-from pathlib import Path
-from PIL import Image 
-from PIL.ExifTags import TAGS
+import os
+from PIL import Image
+
+EDITORS = ["photoshop", "gimp", "canva", "lightroom", "illustrator",
+           "paint.net", "pixlr", "photopea", "affinity", "snapseed"]
 
 
 def check_metadata(file_path):
+    name = "Metadata"
+
+    if not os.path.exists(file_path):
+        return {"name": name, "status": "unverified",
+                "detail": "File not found, so metadata could not be checked."}
+
     try:
-        image = Image.open(file_path)
-        metadata = image.getexif()
+        with Image.open(file_path) as img:
+            software = img.getexif().get(0x0131) or img.info.get("Software")
+    except Exception:
+        return {"name": name, "status": "unverified",
+                "detail": "File could not be read as an image, so metadata was not checked."}
 
-        if not metadata:
-            return {
-                "name": "Metadata",
-                "status": "unverified",
-                "detail": "No metadata found in the file."
-            }
+    if not software:
+        return {"name": name, "status": "unverified",
+                "detail": "No software information found. Metadata may be absent or stripped, so this is not evidence either way."}
 
-        metadata_info = {
-            TAGS.get(tag_id, tag_id): value
-            for tag_id, value in metadata.items()
-        }
+    software = str(software)
+    if any(e in software.lower() for e in EDITORS):
+        return {"name": name, "status": "warn",
+                "detail": f"File was last saved using: {software}."}
 
-        software = metadata_info.get("Software")
-
-        if software:
-            return {
-                "name": "Metadata",
-                "status": "warn",
-                "detail": f"File was last saved using: {software}."
-            }
-
-        return {
-            "name": "Metadata",
-            "status": "pass",
-            "detail": "No suspicious editing software information found."
-        }
-
-    except Exception as error:
-        return {
-            "name": "Metadata",
-            "status": "unverified",
-            "detail": f"Metadata could not be checked: {error}"
-        }
+    return {"name": name, "status": "pass",
+            "detail": f"Software tag ({software}) is not a known editing tool."}
