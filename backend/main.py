@@ -14,6 +14,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+from backend.ai_detection import analyze_image as ai_checks
+
 app = FastAPI()
 DB = "digitaldna.db"
 
@@ -131,7 +133,23 @@ async def verify(file: UploadFile = File(...)):
             "detail": "No matching registration exists.",
         }
 
-    checks = [check]
+    # Each module adds its own checks to this list. Forensics (ELA, metadata)
+    # will be added here later in the same format.
+    checks = [check] + ai_checks(data)
+
+    if result != "Verified Source":
+        ai_fail = any(
+            c["name"] == "AI generator signature" and c["status"] == "fail"
+            for c in checks
+        )
+        any_warn = any(c["status"] == "warn" for c in checks)
+        if ai_fail:
+            result = "Likely AI-Generated"
+            summary = "The image data contains signs of an AI image generator."
+        elif any_warn and result == "Unverified":
+            result = "Potentially Manipulated"
+            summary = "No registered original was found, and forensic checks found possible signs of editing."
+
     reference = save_report(file.filename, sha256, result, summary, checks)
 
     return {
