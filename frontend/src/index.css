@@ -302,3 +302,25 @@ code { background: var(--soft); padding: 2px 8px; border-radius: 6px; font-size:
   .ev { animation: none; }
   .how-score { display: none; }
 }
+
+/* ---- Added for the backend-connected flow ---- */
+a.btn { text-decoration: none; }
+.verdict-badge { display: grid; place-items: center; width: 110px; height: 110px; border-radius: 50%; background: var(--neutral-bg); color: var(--neutral); }
+.verdict.ok .verdict-badge { background: var(--ok-bg); color: var(--ok); }
+.verdict.warn .verdict-badge { background: var(--warn-bg); color: var(--warn); }
+.verdict.bad .verdict-badge { background: var(--bad-bg); color: var(--bad); }
+.final .verdict { grid-template-columns: 1fr; }
+.final .verdict-copy h2 { letter-spacing: .02em; }
+.final-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.final-checks { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.final-checks li { display: flex; gap: 12px; align-items: flex-start; }
+.final-checks small { display: block; color: var(--muted); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.demo-panel { margin-top: 28px; font-size: .85rem; color: var(--muted); }
+.demo-panel summary { cursor: pointer; }
+.demo-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip.dark { background: var(--soft); color: var(--purple); border-color: var(--line); }
+.chip.dark:hover { background: var(--purple); color: #fff; }
+.field + .link { margin-top: -8px; }
+@media (max-width: 640px) { .form-grid, .final-grid { grid-template-columns: 1fr; } }
+@media print { .final-grid { grid-template-columns: 1fr 1fr; } }

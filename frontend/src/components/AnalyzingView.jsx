@@ -6,7 +6,7 @@ const STEPS = [
   ["Reading the file", "Opening it and looking at its hidden details."],
   ["Looking for edits", "Checking whether any part was saved differently."],
   ["Checking for AI", "Estimating whether an AI tool made the image."],
-  ["Confirming with the issuer", "Looking for an issuer record (simulated here)."],
+  ["Checking registered originals", "Comparing the file's fingerprint with registered originals."],
 ];
 
 export default function AnalyzingView({ filename, previewUrl, isPdf }) {

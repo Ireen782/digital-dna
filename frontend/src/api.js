@@ -1,59 +1,59 @@
-// ---- Backend connection settings -------------------------------------------
-// In frontend/.env:   VITE_API_URL=http://localhost:8000
-//                     VITE_DEMO_MODE=true   (simulated results, no backend needed)
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+// Backend connection. Change the address in frontend/.env if the backend moves:
+//   VITE_API_URL=http://127.0.0.1:8000
+export const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-// ASSUMED endpoints. Confirm with the backend team and edit here if different.
-const PATHS = {
-  analyze: "/analyze",   // POST multipart, field "file" -> report (docs/api-contract.md)
-  register: "/register", // POST multipart, fields "file" + "issuer"
-};
-// -----------------------------------------------------------------------------
-import { DEMO_CASES } from "./mockReports";
-
-async function sha256(file) {
-  const buf = await file.arrayBuffer();
-  const hash = await crypto.subtle.digest("SHA-256", buf);
-  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function post(path, formData) {
+async function request(path, options) {
   let res;
   try {
-    res = await fetch(`${API_URL}${path}`, { method: "POST", body: formData });
+    res = await fetch(`${API_URL}${path}`, options);
   } catch {
     throw new Error(
-      `We couldn't reach the analysis service at ${API_URL}. Check that it is running and that CORS allows this site.`
+      `Can't reach the Digital DNA backend at ${API_URL}. Start it from the project root with: uvicorn backend.main:app --reload`
     );
   }
   if (!res.ok) {
     let detail = "";
-    try { detail = (await res.json()).detail || ""; } catch { /* not JSON */ }
-    throw new Error(`The analysis service returned ${res.status}${detail ? `: ${detail}` : ""}`);
+    try {
+      const j = await res.json();
+      if (typeof j.detail === "string") detail = j.detail;
+    } catch { /* not JSON */ }
+    throw new Error(`Server error ${res.status}${detail ? `: ${detail}` : ""}`);
   }
   return res.json();
 }
 
-export async function analyzeFile(file) {
-  if (DEMO_MODE) {
-    // Simulated: the real fingerprint of the real file, with a canned result.
-    // The same file always gets the same result.
-    const hash = await sha256(file);
-    const pick = DEMO_CASES[parseInt(hash.slice(0, 2), 16) % DEMO_CASES.length];
-    return { ...pick.report, filename: file.name, sha256: hash };
-  }
-  const body = new FormData();
-  body.append("file", file);
-  return post(PATHS.analyze, body);
+// Tier 1: upload a document. The field name must be exactly "file".
+// Do not set Content-Type yourself: the browser does it for FormData.
+export function verifyFile(file) {
+  const form = new FormData();
+  form.append("file", file);
+  return request("/verify", { method: "POST", body: form });
 }
 
-export async function registerFile(file, issuer) {
-  if (DEMO_MODE) {
-    return { filename: file.name, issuer, sha256: await sha256(file), registered_at: new Date().toLocaleString() };
-  }
-  const body = new FormData();
-  body.append("file", file);
-  if (issuer) body.append("issuer", issuer);
-  return post(PATHS.register, body);
+// Tier 2: certificate details -> Institutionally Verified / Verification Failed / Cannot Confirm
+export function verifyCertificate(details) {
+  return request("/verify-certificate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(details),
+  });
+}
+
+// Issuers: register an original file's fingerprint.
+export function registerFile(file) {
+  const form = new FormData();
+  form.append("file", file);
+  return request("/register", { method: "POST", body: form });
+}
+
+export const reportUrl = (reference, format = "pdf") =>
+  `${API_URL}/report/${reference}?format=${format}`; // pdf, docx, json or txt
+
+// The backend's own page for asking an institution to confirm a certificate.
+export function requestUrl(details) {
+  const p = new URLSearchParams();
+  Object.entries(details).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") p.set(k, String(v));
+  });
+  return `${API_URL}/request?${p.toString()}`;
 }

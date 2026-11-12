@@ -3,153 +3,26 @@ import DropZone, { validate } from "./DropZone";
 import Icon from "./Icon";
 import SampleCertificate from "./SampleCertificate";
 import Reveal from "./Reveal";
-import { DEMO_CASES } from "../mockReports";
 
-const API = "http://127.0.0.1:8000";
-
-export default function UploadView({ onFile, onDemo, onRegister }) {
+export default function UploadView({ onFile, onRegister }) {
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [report, setReport] = useState(null);
 
-  // Helper to determine status styling for checks
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "pass":
-        return { bg: "#ecfdf5", text: "#065f46", border: "#a7f3d0" };
-      case "warn":
-        return { bg: "#fffbeb", text: "#92400e", border: "#fde68a" };
-      case "fail":
-        return { bg: "#fef2f2", text: "#991b1b", border: "#fecaca" };
-      case "unverified":
-      default:
-        return { bg: "#f3f4f6", text: "#374151", border: "#e5e7eb" };
-    }
-  };
-
-  // Helper for overall result badge styling
-  const getResultBadgeStyle = (result) => {
-    if (["Verified Source", "Institutionally Verified"].includes(result)) {
-      return { bg: "#ecfdf5", text: "#065f46", border: "#10b981" };
-    }
-    if (["Potentially Manipulated", "Likely AI-Generated", "Verification Failed"].includes(result)) {
-      return { bg: "#fef2f2", text: "#991b1b", border: "#ef4444" };
-    }
-    return { bg: "#fffbeb", text: "#92400e", border: "#f59e0b" };
-  };
-
-  // Live call to the Python backend /verify endpoint
-  // Live call to the Python backend /verify endpoint with local fallback for demo
-  async function pick(file) {
+  function pick(file) {
     const problem = validate(file);
     if (problem) return setError(problem);
     setError("");
-    setLoading(true);
-
-    const form = new FormData();
-    form.append("file", file); // Field name must be "file" per backend contract
-
-    try {
-      const res = await fetch(API + "/verify", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Verification failed");
-      const data = await res.json();
-      
-      setReport(data);
-      onFile(file);
-    } catch (err) {
-      // DEMO FALLBACK: Use local DEMO_CASES data so your live presentation never breaks
-      console.warn("Backend offline, falling back to demo mode for presentation...");
-      const fallbackReport = {
-        filename: file.name || "Sample_Certificate.pdf",
-        reference: "DNA-DEMO-9988",
-        result: "Institutionally Verified",
-        summary: "This document successfully passed all digital integrity checks, metadata inspection, and visual anomaly scans in demo mode.",
-        next_step: "The document is ready for official processing or presentation review.",
-        checks: [
-          { name: "Metadata Inspection", detail: "File creation tags and timestamps match standard authoring tools.", status: "pass" },
-          { name: "Visual Anomaly Check", detail: "No patches, altered typography, or compressed spliced regions detected.", status: "pass" },
-          { name: "AI Generation Fingerprints", detail: "Natural sensor noise distribution confirms camera/scanner origin.", status: "pass" },
-          { name: "Issuer Database Confirmation", detail: "Cryptographic hash matches registry record.", status: "pass" }
-        ]
-      };
-      setReport(fallbackReport);
-      onFile(file);
-    } finally {
-      setLoading(false);
-    }
+    onFile(file); // App.jsx sends it to the backend (POST /verify)
   }
 
-  // If a report is returned, render the Report view inside this component
-  if (report) {
-    const resultStyle = getResultBadgeStyle(report.result);
-    return (
-      <section className="section">
-        <div className="wrap" style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <div className="card-box" style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "12px", padding: "2rem", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem" }}>
-              <div>
-                <p className="eyebrow" style={{ marginBottom: "0.25rem" }}>Analysis Report</p>
-                <h2 style={{ fontSize: "1.5rem", fontWeight: "700" }}>{report.filename || "Certificate Assessment"}</h2>
-                <small style={{ color: "var(--text-muted, #64748b)" }}>Reference ID: {report.reference}</small>
-              </div>
-              <span style={{ background: resultStyle.bg, color: resultStyle.text, border: `1px solid ${resultStyle.border}`, padding: "0.5rem 1rem", borderRadius: "20px", fontSize: "0.875rem", fontWeight: "600" }}>
-                {report.result}
-              </span>
-            </div>
-
-            <div style={{ marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid #f1f5f9" }}>
-              <h4 style={{ fontSize: "0.95rem", fontWeight: "600", marginBottom: "0.5rem" }}>Summary</h4>
-              <p style={{ fontSize: "1.05rem", lineHeight: "1.6" }}>{report.summary}</p>
-            </div>
-
-            {report.next_step && (
-              <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#f8fafc", borderRadius: "8px", borderLeft: "4px solid #3b82f6" }}>
-                <h4 style={{ fontSize: "0.85rem", fontWeight: "600", textTransform: "uppercase", marginBottom: "0.25rem" }}>Recommended Next Step</h4>
-                <p style={{ fontSize: "0.95rem" }}>{report.next_step}</p>
-              </div>
-            )}
-
-            <div style={{ marginBottom: "2rem" }}>
-              <h4 style={{ fontSize: "0.95rem", fontWeight: "600", marginBottom: "1rem" }}>Detailed Checks Breakdown</h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {report.checks && report.checks.map((check, index) => {
-                  const statusStyle = getStatusColor(check.status);
-                  return (
-                    <div key={index} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.85rem 1rem", background: statusStyle.bg, border: `1px solid ${statusStyle.border}`, borderRadius: "8px" }}>
-                      <div>
-                        <strong style={{ display: "block", fontSize: "0.95rem" }}>{check.name}</strong>
-                        <small>{check.detail}</small>
-                      </div>
-                      <span style={{ textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "700", color: statusStyle.text, padding: "0.2rem 0.6rem", background: "#fff", borderRadius: "4px", border: `1px solid ${statusStyle.border}` }}>
-                        {check.status}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <p style={{ fontSize: "0.8rem", fontStyle: "italic", color: "#64748b", marginBottom: "1.5rem", textAlign: "center" }}>
-              Note: An unverified or failed result is not proof of forgery.
-            </p>
-
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: "space-between", paddingTop: "1rem", borderTop: "1px solid #f1f5f9" }}>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                {report.report_url && (
-                  <>
-                    <a href={`${API}${report.report_url}?format=pdf`} target="_blank" rel="noreferrer" className="chip" style={{ textDecoration: "none", padding: "0.5rem 1rem", background: "#f1f5f9", borderRadius: "6px", fontSize: "0.875rem", fontWeight: "500" }}>Download PDF</a>
-                    <a href={`${API}${report.report_url}?format=docx`} target="_blank" rel="noreferrer" className="chip" style={{ textDecoration: "none", padding: "0.5rem 1rem", background: "#f1f5f9", borderRadius: "6px", fontSize: "0.875rem", fontWeight: "500" }}>Download DOCX</a>
-                  </>
-                )}
-              </div>
-              <button onClick={() => setReport(null)} style={{ padding: "0.5rem 1.25rem", background: "#1e293b", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "500", cursor: "pointer" }}>
-                Check Another File
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
+  // Demo files live in frontend/public/demo. They go through the real backend like any upload.
+  async function useDemo(path) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error();
+      pick(new File([await res.blob()], "Genuine.jpg", { type: "image/jpeg" }));
+    } catch {
+      setError("Couldn't load the demo file.");
+    }
   }
 
   return (
@@ -166,34 +39,12 @@ export default function UploadView({ onFile, onDemo, onRegister }) {
             </p>
 
             <DropZone onPick={pick} />
-            {loading && <p style={{ color: "#fff", marginTop: "0.5rem" }}>Analyzing file with backend...</p>}
             {error && <p className="error-text on-dark">{error}</p>}
 
             <div className="samples">
-              <span>No file handy? Try a sample:</span>
-              {DEMO_CASES.map((d) => (
-  <button 
-    key={d.key} 
-    className="chip" 
-    onClick={() => {
-      setReport({
-        filename: d.label + " (Verified Demo)",
-        reference: "DNA-DEMO-" + Math.floor(1000 + Math.random() * 9000),
-        result: d.result || "Institutionally Verified",
-        summary: d.summary || "Demonstration sample verified successfully through simulated registry records.",
-        next_step: "Proceed with confidence for your presentation walkthrough.",
-        checks: [
-          { name: "Metadata Inspection", detail: "Valid authoring signature found.", status: "pass" },
-          { name: "Visual Anomaly Check", detail: "No splicing or tampering detected.", status: "pass" },
-          { name: "AI Generation Fingerprints", detail: "Authentic physical media characteristics confirmed.", status: "pass" },
-          { name: "Issuer Database Confirmation", detail: "Record matched in secure simulation ledger.", status: "pass" }
-        ]
-      });
-    }}
-  >
-    {d.label}
-  </button>
-))}
+              <span>Demo files:</span>
+              <button className="chip" onClick={() => useDemo("/demo/Genuine.jpg")}>Original (Genuine.jpg)</button>
+              <button className="chip" onClick={() => useDemo("/demo/edited/Genuine.jpg")}>Edited copy</button>
             </div>
 
             <ul className="assure">
@@ -210,7 +61,7 @@ export default function UploadView({ onFile, onDemo, onRegister }) {
             <div className="callout c2"><span className="cdot neutral" />
               <div><strong>Issuer</strong><small>Couldn't be confirmed</small></div></div>
             <div className="callout c3">
-              <div><small>Integrity score</small><strong className="big">63<i>/100</i></strong></div></div>
+              <div><small>Result</small><strong className="big" style={{ fontSize: "1.1rem" }}>Needs a closer look</strong></div></div>
           </div>
         </div>
       </section>
@@ -230,7 +81,7 @@ export default function UploadView({ onFile, onDemo, onRegister }) {
             {[
               ["upload", "Upload it", "A photo, a scan or a PDF. Even a slightly crooked phone picture works."],
               ["search", "We look closely", "Four separate checks look at the file's hidden details, the image itself, AI signals and the issuer."],
-              ["report", "You get a plain-English report", "A score out of 100, what we found, and the next steps worth taking."],
+              ["report", "You get a plain-English report", "A clear result, what we found, and the next steps worth taking."],
             ].map(([icon, t, d], i) => (
               <Reveal as="li" key={t} delay={(i + 1) * 100} className="how-step">
                 <span className="n">0{i + 1}</span>

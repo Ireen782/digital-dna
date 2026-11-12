@@ -25,6 +25,14 @@ export default function RegisterView() {
     finally { setBusy(false); }
   }
 
+  async function useDemo() {
+    try {
+      const res = await fetch("/demo/Genuine.jpg");
+      pick(new File([await res.blob()], "Genuine.jpg", { type: "image/jpeg" }));
+      setIssuer((v) => v || "Demo University");
+    } catch { setError("Couldn't load the demo original."); }
+  }
+
   function reset() { setFile(null); setIssuer(""); setResult(null); setError(""); }
 
   return (
@@ -63,6 +71,7 @@ export default function RegisterView() {
           </ul>
           <form onSubmit={submit}>
             <DropZone onPick={pick} file={file} />
+            <button type="button" className="link" onClick={useDemo}>Use the demo original (Genuine.jpg)</button>
             <label className="field">Issuer name
               <input value={issuer} onChange={(e) => setIssuer(e.target.value)} placeholder="e.g. Bingham University" />
             </label>

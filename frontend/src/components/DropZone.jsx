@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import Icon from "./Icon";
 
-export const ACCEPT = ["image/png", "image/jpeg", "application/pdf"];
+export const ACCEPT = ["image/png", "image/jpeg"];
 
 export function validate(file) {
   if (!file) return "Please choose a file.";
-  if (!ACCEPT.includes(file.type)) return "Please use a PNG, JPG or PDF file.";
+  if (!ACCEPT.includes(file.type)) return "Please use a PNG or JPG image.";
+  if (file.size === 0) return "That file is empty.";
   if (file.size > 15 * 1024 * 1024) return "That file is over 15 MB. Please use a smaller one.";
   return "";
 }
@@ -26,7 +27,7 @@ export default function DropZone({ onPick, file, compact }) {
       <span className="dz-icon"><Icon name="upload" size={26} /></span>
       <strong>{file ? file.name : "Drop a certificate or document here"}</strong>
       <span className="dz-btn">{file ? "Choose a different file" : "or choose a file"}</span>
-      <span className="dz-hint">PNG, JPG or PDF · up to 15 MB</span>
+      <span className="dz-hint">PNG or JPG · up to 15 MB</span>
       <input ref={inputRef} type="file" accept={ACCEPT.join(",")} hidden onChange={(e) => onPick(e.target.files[0])} />
     </div>
   );
